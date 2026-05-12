@@ -48,7 +48,13 @@ The remainder of this paper is structured as follows: Section 2 describes the da
 
 We use the statistical programming language R [@citeR].... Our data [@shelter].... Following @tellingstories, we consider...
 
-Overview text
+
+
+- Initial checks were run to count missing values, empty text fields, and impossible numbers.
+
+
+- Less than 1% of the data was removed, specifically rows missing geographic coordinates, ward names, or an accident classification.
+
 
 ## Measurement
 	
@@ -186,6 +192,13 @@ Figure 6:
 
 ## Data Cleaning
 
+A couple of location coordinates that were entered backwards (positive instead of negative) were corrected.
+
+A couple of impossible ages (over 110 years old) were erased.
+
+A small number of property-damage-only incidents were lumped into the non-fatal injury category.
+
+Blank entries for specific involvement flags (like distracted driving, aggressive driving, or heavy trucks) were filled in with "No" to assume the behavior or vehicle was absent if not recorded.
 
 \newpage
 
