@@ -1,44 +1,42 @@
 #### Preamble ####
-# Purpose: Cleans the raw plane data recorded by two observers..... [...UPDATE THIS...]
-# Author: Rohan Alexander [...UPDATE THIS...]
-# Date: 6 April 2023 [...UPDATE THIS...]
-# Contact: rohan.alexander@utoronto.ca [...UPDATE THIS...]
-# License: MIT
-# Pre-requisites: [...UPDATE THIS...]
-# Any other information needed? [...UPDATE THIS...]
+# Purpose: Cleans the raw collision data to handle missing values and correct data types.
+# Author: Arusan Surendiran
+# Date: 11 May 2026
+# Contact: arusan.surendiran@utoronto.ca
 
 #### Workspace setup ####
 library(tidyverse)
+library(lubridate)
+library(here)
 
 #### Clean data ####
-raw_data <- read_csv("inputs/data/plane_data.csv")
+raw_data <- read_csv(here("data/01-raw_data/raw_collision_data.parquet"))
 
-cleaned_data <-
-  raw_data |>
-  janitor::clean_names() |>
-  select(wing_width_mm, wing_length_mm, flying_time_sec_first_timer) |>
-  filter(wing_width_mm != "caw") |>
+cleaned_ksi_data <- raw_data |>
+  # Fix outliers where the longitude sign was likely flipped during data entry.
+  mutate(longitude = if_else(longitude > 0, -longitude, longitude)) |>
+  
+  # Remove rows without coordinates ()
+  filter(!is.na(longitude), !is.na(latitude)) |>
+  
+  # Clean age data and collision classifications
   mutate(
-    flying_time_sec_first_timer = if_else(flying_time_sec_first_timer == "1,35",
-                                   "1.35",
-                                   flying_time_sec_first_timer)
-  ) |>
-  mutate(wing_width_mm = if_else(wing_width_mm == "490",
-                                 "49",
-                                 wing_width_mm)) |>
-  mutate(wing_width_mm = if_else(wing_width_mm == "6",
-                                 "60",
-                                 wing_width_mm)) |>
+    invage = if_else(invage > 110, NA_real_, invage),
+    acclass = if_else(acclass == "Property Damage Only", "Non-Fatal Injury", acclass)) |>
+  
+  # Create temporal variables
   mutate(
-    wing_width_mm = as.numeric(wing_width_mm),
-    wing_length_mm = as.numeric(wing_length_mm),
-    flying_time_sec_first_timer = as.numeric(flying_time_sec_first_timer)
+    accdate = ymd_hms(accdate),
+    year = year(accdate),
+    month = month(accdate, label = TRUE, abbr = TRUE),
+    day_of_week = wday(accdate, label = TRUE, abbr = TRUE),
+    hour = hour(accdate)
   ) |>
-  rename(flying_time = flying_time_sec_first_timer,
-         width = wing_width_mm,
-         length = wing_length_mm
-         ) |> 
-  tidyr::drop_na()
+  
+  # Standardize empty strings and missing flags to 'No' for logical consistency
+  mutate(across(where(is.character), ~ if_else(.x == "" | .x == " ", NA_character_, .x))) |>
+  mutate(across(c(aggressive, distracted, red_light, pedestrian, cyclist, motorcyclist, heavy_truck), 
+                ~ replace_na(., "No")))
 
 #### Save data ####
-write_csv(cleaned_data, "outputs/data/analysis_data.csv")
+write_csv(cleaned_ksi_data, "data/analysis_data/analysis_data.csv")
