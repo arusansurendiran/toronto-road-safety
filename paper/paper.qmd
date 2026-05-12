@@ -1,16 +1,16 @@
 ---
-title: "My title"
-subtitle: "My subtitle if needed"
-author: 
-  - First author
-  - Another author
-thanks: "Code and data are available at: [https://github.com/RohanAlexander/starter_folder](https://github.com/RohanAlexander/starter_folder)."
+title: "The State of Road Safety in the City of Toronto"
+subtitle: "Analyzing Vehicle Collisions from 2006 to 2026"
+author: Arusan Surendiran
+thanks: "Code and data are available at: [https://github.com/arusansurendiran/toronto-road-safety)."
 date: today
 date-format: long
-abstract: "First sentence. Second sentence. Third sentence. Fourth sentence."
 format: pdf
 number-sections: true
 bibliography: references.bib
+echo: false
+warning: false
+message: false
 ---
 
 ```{r}
@@ -18,26 +18,28 @@ bibliography: references.bib
 #| warning: false
 #| message: false
 
+library(here)
+library(arrow)
+library(kableExtra)
+library(opendatatoronto)
+library(sf)
+library(ggplot2)
+library(patchwork)
 library(tidyverse)
-library(palmerpenguins)
+library(sf)
+library(osmdata)
 ```
 
 
 # Introduction
 
-Overview paragraph
+Home to over 3 million residents, Toronto is the most populated and one of the densest cities in Canada. Boasting a metropolitan center this large, there is constant movement across the city from pedestrians to drivers. However, Toronto faces the challenge of resident safety when it comes to road transportation. While vehicle collisions are an unfortunate reality of urban transportation, municipal data shows road safety as a severe and growing public issue. Even as of late, the heated debates on the inclusion of speeding cameras within the province show how road safety is important to many. To tackle these dangers on the road, the city developed the Vision Zero Road Safety Plan and actively provides public, data-driven dashboards tracking total collision counts. However, while raw data is highly accessible, there is a gap in understanding geographic disparities and the specific profiles of the users most impacted by these collisions.
 
-Estimand paragraph
+To address this, we use 20 years of open-source Motor Vehicle Collision data from the City of Toronto Open Data Portal to investigate the locations and timing of roughly 20,000 road incidents. The scope of the data allows us to evaluate the realities of road safety over time.
 
-Results paragraph
+We find that severe incidents peak sharply during the morning and evening rush hours, showing how risks are tied to standard commuter movement. Furthermore, while the absolute count of collisions varies widely across wards, population-adjusted rates reveal spatial inequities, with specific neighborhoods experiencing higher risks. Overall, where and how people drive plays into the safety of both drivers and local residents, making it important to also curate targeted interventions across specific neighbourhoods while planning overarching safety campaigns.
 
-Why it matters paragraph
-
-Telegraphing paragraph: The remainder of this paper is structured as follows. @sec-data....
-
-
-
-
+The remainder of this paper is structured as follows: Section 2 describes the data source. Section 3 presents the results of the geographic and temporal analyses. Section 4 discusses the policy implications of these findings.
 
 
 # Data {#sec-data}
@@ -58,137 +60,119 @@ Add graphs, tables and text. Use sub-sub-headings for each outcome variable or u
 
 
 
-Some of our data is of penguins (@fig-bills), from @palmerpenguins.
+Some of our data is of penguins (@fig-bills), from @palmerpenguins
 
-```{r}
-#| label: fig-bills
-#| fig-cap: Bills of penguins
-#| echo: false
-
-ggplot(penguins, aes(x = island, fill = species)) +
-  geom_bar(alpha = 0.8) +
-  scale_fill_manual(values = c("darkorange","purple","cyan4"),
-                    guide = "none") +
-  theme_minimal() +
-  facet_wrap(~species, ncol = 1) +
-  coord_flip()
-```
-
-Talk more about it.
-
-And also planes (@fig-planes). (You can change the height and width, but don't worry about doing that until you have finished every other aspect of the paper - Quarto will try to make it look nice and the defaults usually work well once you have enough text.)
-
-```{r}
-#| label: fig-planes
-#| fig-cap: Relationship between wing length and width
-#| echo: false
-#| warning: false
-#| message: false
-
-analysis_data <- read_csv(here::here("data/02-analysis_data/analysis_data.csv"))
-
-analysis_data |> 
-  ggplot(aes(x = width, y = length)) +
-  geom_point(alpha = 0.8) +
-  theme_minimal() +
-  labs(x = "Wing width (mm)",
-       y = "Wing length (mm)")
-```
-
-Talk way more about it. 
-
-## Predictor variables
-
-Add graphs, tables and text.
-
-Use sub-sub-headings for each outcome variable and feel free to combine a few into one if they go together naturally.
-
-
-
-
-
-
-
-
-# Model
-
-The goal of our modelling strategy is twofold. Firstly,...
-
-Here we briefly describe the Bayesian analysis model used to investigate... Background details and diagnostics are included in [Appendix -@sec-model-details].
-
-## Model set-up
-
-Define $y_i$ as the number of seconds that the plane remained aloft. Then $\beta_i$ is the wing width and $\gamma_i$ is the wing length, both measured in millimeters.  
-
-\begin{align} 
-y_i|\mu_i, \sigma &\sim \mbox{Normal}(\mu_i, \sigma) \\
-\mu_i &= \alpha + \beta_i + \gamma_i\\
-\alpha &\sim \mbox{Normal}(0, 2.5) \\
-\beta &\sim \mbox{Normal}(0, 2.5) \\
-\gamma &\sim \mbox{Normal}(0, 2.5) \\
-\sigma &\sim \mbox{Exponential}(1)
-\end{align}
-
-We run the model in R [@citeR] using the `rstanarm` package of @rstanarm. We use the default priors from `rstanarm`.
-
-
-### Model justification
-
-We expect a positive relationship between the size of the wings and time spent aloft. In particular...
-
-We can use maths by including latex between dollar signs, for instance $\theta$.
 
 
 # Results
 
 Our results are summarized in @tbl-modelresults.
 
-```{r}
-#| echo: false
-#| eval: true
-#| warning: false
-#| message: false
 
-library(rstanarm)
+```{r load-data}
+#| include: false
 
-first_model <-
-  readRDS(file = here::here("models/first_model.rds"))
+collisions <- read_parquet(here("data/02-analysis_data/clean_collision_data.parquet"))
 ```
 
 ```{r}
-#| echo: false
-#| eval: true
-#| label: tbl-modelresults
-#| tbl-cap: "Explanatory models of flight time based on wing width and wing length"
-#| warning: false
+#| label: tbl-acclass
+#| tbl-cap: "Types of Collision"
 
-modelsummary::modelsummary(
-  list(
-    "First model" = first_model
-  ),
-  statistic = "mad",
-  fmt = 2
-)
+# Calculate proportions for Accident Classifications
+acclass_summary <- collisions |>
+  group_by(acclass) |>
+  summarise(count = n()) |>
+  mutate(proportion = count / sum(count)) |>
+  arrange(desc(count))
+
+# Generate the table
+acclass_summary |>
+  rename(
+    `Accident Class` = acclass,
+    `Total Count` = count,
+    `Proportion` = proportion) |>
+  kable(
+    digits = 3)
 ```
 
 
+
+```{r}
+#| label: figs
+#| fig-cap: Bills of penguins
+#| echo: false
+
+source(here("scripts/03-data_analysis.R"))
+
+collisions_map_wards
+
+combined_maps
+
+hourly_collisions
+
+vision_zero_chart
+
+heatmap_day_hour
+
+(plot_behavioral_data + plot_truck_danger) / plot_road_user
+
+```
+
+
+Figure 1: Concentration of Traffic Collisions by Toronto Ward
+
+- absolute count of traffic collisions is heavily concentrated in the downtown core
+
+- outer wards generally show lower absolute collision volumes compared to the central downtown hub.
+
+Figure 2: Comparison of Collision Frequency and Risk by Population Size (Neighbourhoods)
+
+- absolute collision counts highlight downtown and specific western areas
+
+- adjusting for population size makes some shifts to the risk map, noting how Scarborough area has more comparable level of incidents compared to the rest of Toronto (still higher though)
+
+- annualized rate per 10,000 residents shows that several outer neighborhoods, like in the northwest, experience high collision rates
+- the northwest of toronto is also more typically associated with other deep inequites too
+
+Figure 3: Hourly Distribution of Traffic Collisions
+
+- Collision frequency is really high during peak 4-6 rush house standard commuter traffic
+
+- sustained increase throughout day hours, then dips after 6pm
+
+- incident volumes hit their lowest point at 04:00 before traffic begins to increase
+
+Figure 4: Vision Zero Impact 
+
+-  reduction in overall collision volume when comparing the 2006 baseline to recent years.
+
+- remained flat between the pre-policy (2015) and pre-pandemic (2019), maybe saying early Vision Zero implementations did not yield good structural changes
+
+- by 2025, both total non-fatal and fatal injuries show a decrease.
+
+
+
+Figure 5: Week Day and Hourly Distribution
+
+- you can see that friday and saturday nights, especially in the AM times of those days, shows an increase in collisions
+
+- aligns with the general idea of more freetime for people from weekdays, suggesting later times of going out and possible more reckless behvaiour on roads
+
+- weekdays are relatively quieter in the AM pre-dawn hours
+
+
+Figure 6: 
+
+- aggressive driving is the most common cause
+
+- trucks are in general more dangerous
+
+- pedestrians are the most at risk from vehicle collisions across the city 
 
 
 # Discussion
 
-## First discussion point {#sec-first-point}
-
-If my paper were 10 pages, then should be be at least 2.5 pages. The discussion is a chance to show off what you know and what you learnt from all this. 
-
-## Second discussion point
-
-Please don't use these as sub-heading labels - change them to be what your point actually is.
-
-## Third discussion point
-
-## Weaknesses and next steps
-
-Weaknesses and next steps should also be included.
 
 \newpage
 
@@ -196,59 +180,11 @@ Weaknesses and next steps should also be included.
 
 # Appendix {-}
 
+# Data
 
-# Additional data details
+## Additional Data Details
 
-# Model details {#sec-model-details}
-
-## Posterior predictive check
-
-In @fig-ppcheckandposteriorvsprior-1 we implement a posterior predictive check. This shows...
-
-In @fig-ppcheckandposteriorvsprior-2 we compare the posterior with the prior. This shows... 
-
-```{r}
-#| eval: true
-#| echo: false
-#| message: false
-#| warning: false
-#| label: fig-ppcheckandposteriorvsprior
-#| layout-ncol: 2
-#| fig-cap: "Examining how the model fits, and is affected by, the data"
-#| fig-subcap: ["Posterior prediction check", "Comparing the posterior with the prior"]
-
-pp_check(first_model) +
-  theme_classic() +
-  theme(legend.position = "bottom")
-
-posterior_vs_prior(first_model) +
-  theme_minimal() +
-  scale_color_brewer(palette = "Set1") +
-  theme(legend.position = "bottom") +
-  coord_flip()
-```
-
-## Diagnostics
-
-@fig-stanareyouokay-1 is a trace plot. It shows... This suggests...
-
-@fig-stanareyouokay-2 is a Rhat plot. It shows... This suggests...
-
-```{r}
-#| echo: false
-#| eval: true
-#| message: false
-#| warning: false
-#| label: fig-stanareyouokay
-#| fig-cap: "Checking the convergence of the MCMC algorithm"
-#| fig-subcap: ["Trace plot", "Rhat plot"]
-#| layout-ncol: 2
-
-plot(first_model, "trace")
-
-plot(first_model, "rhat")
-```
-
+## Data Cleaning
 
 
 \newpage
