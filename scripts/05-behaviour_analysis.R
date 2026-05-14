@@ -47,7 +47,7 @@ truck_danger <- collisions |>
 
 # Road User Vulnerability
 vru_data <- collisions |>
-  filter(road_user != "Other") |>
+  filter(road_user != "other") |>
   group_by(road_user) |>
   summarise(
     total = n(),
@@ -58,27 +58,27 @@ vru_data <- collisions |>
 #### Visual Analysis ####
 
 # Behavioral Data
-plot_behavioral <- ggplot(behavioral_data, aes(x = reorder(behavior, fatal_count), y = fatal_count, fill = behavior)) +
-  geom_col(color = "black", width = 0.7) +
-  scale_fill_viridis_d(option = "mako", direction = -1) +
+plot_behavioral <- ggplot(behavioral_data, aes(x = reorder(behavior, fatal_count), y = fatal_count, fill = fatal_count)) +
+  geom_col(color = "white", width = 0.7) +
+  scale_fill_viridis_c(option = "viridis", direction = -1) + 
   coord_flip() + 
   theme_minimal() +
   theme(legend.position = "none", plot.title = element_text(face = "bold", size = 12)) +
   labs(title = "Total Fatalities by Behavioral Factor", x = NULL, y = "Count")
 
 # Truck Involvement
-plot_truck <- ggplot(truck_danger, aes(x = reorder(truck_involved, fatality_rate), y = fatality_rate, fill = truck_involved)) +
-  geom_col(color = "black", width = 0.6) +
-  scale_fill_manual(values = c("Heavy Truck Involved" = "#8B0000", "No Heavy Truck" = "#4682B4")) +
+plot_truck <- ggplot(truck_danger, aes(x = reorder(truck_involved, fatality_rate), y = fatality_rate, fill = fatality_rate)) +
+  geom_col(color = "white", width = 0.6) +
+  scale_fill_viridis_c(option = "viridis", direction = -1) + 
   coord_flip() +
   theme_minimal() +
   theme(legend.position = "none", plot.title = element_text(face = "bold", size = 12)) +
   labs(title = "Fatality Rate by Heavy Vehicle Involvement", x = NULL, y = "Fatality Rate (%)")
 
 # Road User Type
-plot_vru <- ggplot(vru_data, aes(x = reorder(road_user, fatality_rate), y = fatality_rate, fill = road_user)) +
-  geom_col(color = "black", width = 0.7) +
-  scale_fill_viridis_d(option = "rocket", direction = -1) +
+plot_vru <- ggplot(vru_data, aes(x = reorder(road_user, fatality_rate), y = fatality_rate, fill = fatality_rate)) +
+  geom_col(color = "white", width = 0.7) +
+  scale_fill_viridis_b(option = "viridis", direction = -1) +
   coord_flip() +
   theme_minimal() +
   theme(legend.position = "none", plot.title = element_text(face = "bold", size = 12)) +

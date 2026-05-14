@@ -220,7 +220,6 @@ source(here("scripts/05-behaviour_analysis.R"))
 risk_factor_stack
 ```
 
-
 @fig-risk-factors shows specific human and vehicle risk factors. In comparison to other risky behaviours, aggressive driving (including speeding) is responsible for the highest total fatalities. When evaluating the percentage of involvements resulting in death, collisions involving heavy trucks are nearly twice as lethal (25\%) as standard non-truck collisions. Among all road users, pedestrians represent the most vulnerable demographic, experiencing the highest fatality rate across the city at nearly 18\%. Overall, the figure represents who poses the most risks and who is vulnerable on the roads of Toronto.
 
 ## Vision Zero Policy Impact
