@@ -47,6 +47,7 @@ truck_danger <- collisions |>
 
 # Road User Vulnerability
 vru_data <- collisions |>
+  filter(road_user != "Other") |>
   group_by(road_user) |>
   summarise(
     total = n(),
