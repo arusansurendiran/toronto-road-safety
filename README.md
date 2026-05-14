@@ -13,9 +13,4 @@ The repo is structured as:
 -   `scripts` contains the R scripts used to download, clean and analyze data.
 -   `paper` contains the files used to generate the paper, including the Quarto document and reference bibliography file, as well as the PDF of the paper. 
 -   `visuals` contains all the created visualizations, saved as pngs for easier extraction.
--   `other` contains select papers in `literature` and details about LLM chat interactions in `llm_usage`.
-
-## Statement on LLM usage
-
-Aspects of the code were written with the help of Google Gemini. The chat history is available in inputs/llms/usage.txt.
-
+-   `other` contains select papers referred to in `literature`.
