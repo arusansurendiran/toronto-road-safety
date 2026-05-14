@@ -76,7 +76,7 @@ variable_dictionary <- tibble::tribble(
   "Year", "The year the collision occurred, ranging from 2006 to 2026.",
   "Month", "The month of the year the collision occurred.",
   "Day of Week", "The day of the week the collision occurred.",
-  "Hour of Day", "The specific hour the collision occurred, measured on a 24-hour clock (0-23).",
+  "Hour of Day", "The hour the collision occurred, measured on a 24-hour clock (0-23).",
   "Road User Category", "The classification of the involved party (e.g., Driver, Pedestrian, Cyclist, Passenger).",
   "Age of Involved", "The recorded age of the involved party.",
   "Behavioral Flags", "Binary indicators denoting the presence of aggressive driving, distracted driving, or red-light running.",
