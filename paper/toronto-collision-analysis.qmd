@@ -1,0 +1,281 @@
+---
+title: "The State of Road Safety in the City of Toronto"
+subtitle: "Analyzing Vehicle Collisions from 2006 to 2026"
+author: Arusan Surendiran
+abstract: "This paper investigates the geographic, temporal and behavioural factors contributing to vehicle collisions across Toronto from 2006 to 2026. Spatial and temporal analyses reveal disparities in collision risk across Toronto regions, alongside peaks during commuter hours and late weekend nights. Furthermore, fatalities are highest among collisions with aggressive driving and heavy truck involvement, putting pedestrians as the most vulnerable group. While current municipal policies align with a decline in collisions, the study emphasizes the need for targeted, data-informed interventions to address spatial and behavioural risks."
+thanks: "Code and data are available at: [https://github.com/arusansurendiran/toronto-road-safety](https://github.com/arusansurendiran/toronto-road-safety)."
+date: today
+date-format: long
+format: pdf
+number-sections: true
+bibliography: references.bib
+echo: false
+warning: false
+message: false
+toc: true
+header-includes:
+  - \usepackage{float}
+---
+
+```{r setup-library}
+#| include: false
+#| warning: false
+#| message: false
+
+library(here)
+library(arrow)
+library(kableExtra)
+library(opendatatoronto)
+library(patchwork)
+library(tidyverse)
+library(sf)
+library(osmdata)
+```
+
+
+# Introduction
+
+Home to over 3 million residents, Toronto is the most populated and one of the densest cities in Canada. Boasting a metropolitan center this large, there is constant movement across the city from pedestrians to drivers. However, Toronto faces the challenge of resident safety when it comes to road transportation. While vehicle collisions are an unfortunate reality of urban transportation, municipal data shows road safety as a severe and growing public issue. Even as of late, the heated debates on the inclusion of speeding cameras within the province show how road safety is important to many. To tackle these dangers on the road, the city developed the Vision Zero Road Safety Plan and actively provides public, data-driven dashboards tracking total collision counts. However, while raw data is highly accessible, there is a gap in understanding geographic disparities and the specific profiles of the users most impacted by these collisions.
+
+To address this, we use 20 years of open-source Motor Vehicle Collision data from the City of Toronto Open Data Portal to investigate the locations and timing of roughly 20,000 road incidents. The scope of the data allows us to evaluate the realities of road safety over time.
+
+We find that severe incidents peak sharply during the morning and evening rush hours, showing how risks are tied to standard commuter movement. Furthermore, while the absolute count of collisions varies widely across wards, population-adjusted rates reveal spatial inequities, with specific neighborhoods experiencing higher risks. Overall, where and how people drive plays into the safety of both drivers and local residents, making it important to also curate targeted interventions across specific neighbourhoods while planning overarching safety campaigns.
+
+The remainder of this paper is structured as follows: Section 2 describes the data source. Section 3 presents the results of the geographic, temporal and behavioural analyses. Section 4 discusses the implications of these findings.
+
+Statistical programming language R [@citeR] is used in this report for data processing and analysis.
+
+# Data {#sec-data}
+
+## Overview
+
+The City of Toronto Open Data Portal is the official source for hundreds of freely available datasets regarding the city, and is widely used to inform the design of civic services and infrastructure. To evaluate road safety in Toronto, we use the Motor Vehicle Collisions (Killed or Seriously Injured - KSI) dataset [@collisions]. This study examines fatal and non-fatal injuries recorded between 2006 and 2026.
+
+To compare collision volume relative to region size, we extract the portal's Neighbourhood Profiles [@neighbourhood]. This secondary dataset provides the 2021 Census population counts for Toronto’s 158 neighbourhoods. The final processed dataset contains 20,358 unique collision records.
+
+## Data variables
+
+```{r load-data}
+#| include: false
+
+collisions <- read_parquet(here("data/02-analysis_data/clean_collision_data.parquet"))
+```
+
+The analysis incorporates geographic, temporal, behavioural, and demographic variables to evaluate collision patterns across Toronto, all outlined in @tbl-variable-dictionary.
+
+```{r}
+#| label: tbl-variable-dictionary
+#| tbl-cap: "Data Dictionary of Key Variables"
+
+variable_dictionary <- tibble::tribble(
+  ~Variable, ~Description,
+  "Geographic Coordinates", "The longitudinal and latitudinal coordinates of the collision.",
+  "Ward", "The political ward boundary where the incident occurred.",
+  "Neighbourhood", "One of the 158 Toronto neighbourhoods where the incident occurred.",
+  "Accident Severity", "The classification of the incident, categorized as Fatal Injury or Non-Fatal Injury.",
+  "Year", "The year the collision occurred, ranging from 2006 to 2026.",
+  "Month", "The month of the year the collision occurred.",
+  "Day of Week", "The day of the week the collision occurred.",
+  "Hour of Day", "The specific hour the collision occurred, measured on a 24-hour clock (0-23).",
+  "Road User Category", "The classification of the involved party (e.g., Driver, Pedestrian, Cyclist, Passenger).",
+  "Age of Involved", "The recorded age of the involved party.",
+  "Behavioral Flags", "Binary indicators denoting the presence of aggressive driving, distracted driving, or red-light running.",
+  "Heavy Truck Flag", "Binary indicator denoting whether a heavy transport truck was involved in the collision.")
+
+variable_dictionary |> 
+  kable(booktabs = TRUE) |>
+  kable_styling(latex_options = c("HOLD_position", "striped"), full_width = FALSE) |>
+  column_spec(1, bold = TRUE, width = "1.5in") |>
+  column_spec(2, width = "4.5in")
+```
+
+
+
+The primary outcome of interest is accident classification, which categorizes incidents based on the severity of the result (Fatal or Non-Fatal) (@tbl-acclass).
+
+```{r}
+#| label: tbl-acclass
+#| tbl-cap: "Collision Frequencies by Accident Outcome. Nearly 15% of collisions have been fatal in the last 20 years of Toronto."
+
+collisions |>
+  count(acclass, name = "Total Count") |>
+  mutate(Proportion = round(`Total Count` / sum(`Total Count`), 3) * 100) |>
+  kable(
+    col.names = c("Accident Class", "Total Count", "Proportion (%)"),
+    booktabs = TRUE) |>
+  kable_styling(latex_options = "HOLD_position")
+```
+
+
+
+
+Geographic variables, including Ward names, Neighbourhood names, and exact coordinates, allow for mapping. By joining these with 2021 census data, we can calculate risk rates adjusted for population density rather than solely on absolute counts (@tbl-geo-summary).
+
+
+```{r}
+#| label: tbl-geo-summary
+#| tbl-cap: "Number of Geographic Divisions in The City of Toronto"
+
+collisions |>
+  summarise(
+    `Total Wards` = n_distinct(wardname, na.rm = TRUE),
+    `Total Neighbourhoods` = n_distinct(neighbourhood, na.rm = TRUE)) |>
+  kable(booktabs = TRUE) |>
+  kable_styling(latex_options = "HOLD_position")
+```
+
+
+
+To identify peak risk periods and track the impact of municipal safety policies over time, we evaluate temporal variables such as Year, Day of the Week, and Hour of Day.
+
+Furthermore, we analyze human factors, including road user classifications, heavy vehicle involvement, and behavioral indicators such as distracted or aggressive driving. We aim to determine the relative risks faced by vulnerable road users and the specific factors contributing to fatal collision (@tbl-road-users).
+
+```{r}
+#| label: tbl-road-users
+#| tbl-cap: "Involvements by Road User Classification. Asides from drivers, pedestrians and passengers are involved the most in vehicular accidents."
+
+collisions |>
+  count(road_user, name = "Total Count") |>
+  mutate(
+    road_user = str_to_title(str_replace_all(road_user, "_", " ")),
+    Proportion = round(`Total Count` / sum(`Total Count`), 3) * 100) |>
+  arrange(desc(`Total Count`)) |>
+  kable(
+    col.names = c("Road User Category", "Total Count", "Proportion (%)"),
+    booktabs = TRUE) |>
+  kable_styling(latex_options = "HOLD_position")
+```
+
+
+
+
+# Results {#sec-results}
+
+
+## Geographic Analysis
+
+```{r}
+#| label: fig-ward-map
+#| fig-cap: "Geographic distribution of total traffic collisions across Toronto City Wards (2006–2026)."
+
+source(here("scripts/03-geographic_analysis.R"))
+
+collisions_map_wards
+```
+
+
+```{r}
+#| label: fig-neighbourhoods
+#| fig-cap: "Analysis of Toronto Collision Density by Neighbourhood (2006-2026)"
+#| fig-subcap: 
+#|   - "Total collision counts per neighbourhood"
+#|   - "Average collisions annually per 10,000 residents"
+#| layout-ncol: 2
+#| echo: false
+
+plot_absolute + labs(title = "Absolute Collision Frequency")
+plot_rate + labs(title = "Collision Risk relative to Population")
+```
+
+
+To visualize the geographic distribution of collision incidents across Toronto, we created choropleth maps for both the broader ward level and the specific neighborhood level.
+
+@fig-ward-map shows the absolute count of traffic collisions by Toronto Ward from 2006 to 2026. The spatial distribution reveals the highest absolute counts heavily concentrated within the downtown core. In contrast, most of the city's outer wards generally exhibit lower absolute collision frequencies compared to this central hub. The exceptions here are select wards in Northwest Toronto and Southeast Toronto.
+
+To determine if any of these clusters are influenced by population density, @fig-neighbourhoods presents a side-by-side neighborhood-level comparison of absolute collision counts versus the average annual collision rate per 10,000 residents. The absolute counts map (left) aligns with the ward-level data, highlighting the downtown core and specific western and eastern areas as collision hotspots. However, adjusting for population size shifts some of the geographical risk profile (right). The downtown core seems to be less concentrated in accidents in comparison to several outer neighborhoods in the northwest and parts of Scarborough, who seem to experience disproportionately high collision rates.
+
+## Temporal Analysis
+
+```{r}
+#| label: fig-temporal-analysis
+#| fig-cap: "Temporal analysis of collisions highlighting peak risk windows and Vision Zero policy introductions."
+#| fig-subcap: 
+#|   - "Hourly distribution showing evening peak periods."
+#|   - "Heatmap of risk concentration by day of week and hour."
+#| layout-ncol: 2
+
+source(here("scripts/04-temporal_analysis.R"))
+
+hourly_collisions + labs(title = "Hourly Distribution of Collisions")
+heatmap_day_hour + labs(title = "Temporal Heatmap of Collisions")
+```
+
+
+To understand when vehicular accidents are most likely to occur, we analyzed collisions across the time of day and the day of the week.
+
+@fig-temporal-analysis (a) plots the aggregate hourly distribution of all traffic collisions within the data. The frequency of incidents follows standard commuter traffic flows. It begins to increase when the general public wakes up in the morning, peaks during the evening rush hour from 5pm-6pm, and declines through the late evening.
+
+To determine if collisions shifts depending on the day, @fig-temporal-analysis (b) presents a heatmap of incidents by both day of the week and hour. While the weekday evening commuter peak is visible, we also reveal a secondary risk window. Late Friday nights into Saturday mornings as well as Saturday nights into early Sunday mornings (0:00 to 4:00), show clusters of high collisions. In contrast, the pre-dawn hours (03:00 to 05:00) during standard weekdays (Tuesday through Thursday) represent the periods with the lowest collision frequencies.
+
+
+## Risk Factor Analysis
+
+```{r}
+#| label: fig-risk-factors
+#| fig-cap: "Toronto Collision Risks, llustrating the impact of driver behavior, heavy vehicle involvement, and vulnerability of different road users"
+#| fig-height: 10
+#| fig-width: 7
+
+source(here("scripts/05-behaviour_analysis.R"))
+risk_factor_stack
+```
+
+
+@fig-risk-factors shows specific human and vehicle risk factors. In comparison to other risky behaviours, aggressive driving (including speeding) is responsible for the highest total fatalities. When evaluating the percentage of involvements resulting in death, collisions involving heavy trucks are nearly twice as lethal (25\%) as standard non-truck collisions. Among all road users, pedestrians represent the most vulnerable demographic, experiencing the highest fatality rate across the city at nearly 18\%. Overall, the figure represents who poses the most risks and who is vulnerable on the roads of Toronto.
+
+## Vision Zero Policy Impact
+
+```{r}
+#| label: fig-vision-zero-impact
+#| fig-cap: "Analysis of Toronto collisions (2006–2025), marked by implementation of Vision Zero and 2.0 Policies"
+
+source(here("scripts/06-vision_zero_analysis.R"))
+vision_zero_chart
+```
+
+To evaluate the history of road safety in Toronto, @fig-vision-zero-impact provides a comparison of collision trends between 2006 and 2025. The data shows a reduction in overall collision volume for both fatal and non-fatal injuries when comparing the recent years to 2006.
+
+Prior to the new municipal policy, Vision Zero, in 2016, incident volumes remained flat, while showing a fluctuation in fatal injuries. However, the period of 2016 to 2019 shows little to no signifcant changes in collisions. Once an updated Vision Zero 2.0 was introduced, we see a stable decreasing trend in collisions, even without factoring the obvious drop in collisions during the COVID-19 pandemic. By 2025, total fatalities and non-fatal injuries reached their lowest points in the twenty-year span.
+
+
+# Discussion {#sec-discussion}
+
+
+## Spatial Inequity of Collision Risk 
+
+Neighbourhoods in Scarborough and Northwest Toronto experience higher risk of vehicular collisions, even when compared to the busy downtown core. Road infrastructure plays an important role here, as these less centralized parts of Toronto rely heavily on wide, major arterial roads with higher speed limits than downtown streets. Furthermore, research shows that urban arterials pose an even greater risk for lower-income environments compared to more affluent communities [@dumbaugh2022lowerincome]. Several of these identified neighbourhoods are already included in Toronto’s development plans, and collision risk is another clear reason to focus on improving the state of underserved areas. In 2019, Toronto's CBC even reported on the risk to pedestrians in lower-income areas [@sun_2019_pedestrians], which underscores how our analysis here is important in understanding how risk looks different across the city. Ultimately, collision risk is not uniform across the city, and road safety policies must be tailored to the infrastructures and socioeconomic status of each neighbourhood.
+
+## Trends in Vehicle Risk
+
+The data here further highlights how different road conditions influence collision frequency. As expected, collisions are higher during commuting times when traffic is heaviest. The risk changes drastically late at night, particularly on weekends.  While there is an established link between weekend nights and alcohol consumption, the data here emphasizes the reality of the night time risk. 
+Additionally, aggressive driving and the involvement of heavy trucks are associated with the highest number of fatalities, with pedestrians unfortunately leading those most impacted. Safety interventions need to simultaneously address several key issues, from peak-hour congestion to high-speed, reckless behaviours. Our recommendations here are backed by data, strengthening future policy recommendations.
+
+## Evaluating Vision Zero and Government Policy 
+
+Analyzing these collision trends over time provides an evaluation of Toronto's Vision Zero initiative. When the policy was first introduced, studies showed that the act of upgrading speeding signage, without any physical traffic calming measures or additional enforcement, did not greatly change driver behaviour and collisions [@keall2005contribution].
+
+Our data aligns with this, showing that the policy remained ineffective until a revamped version of the policy was rolled out in 2019 [@rothman2022pilot, @cityoftoronto_2023_toronto]. While total incidents did drop significantly in 2020, this can be largely attributed to the lack of traffic caused by the global pandemic lockdowns. As shown earlier, commuter flows influence collision rates, so the post-pandemic changes in recent years of commuting may still be why there is a decline in collisions. While the overall reduction is positive, we remain cautious when using this data to measure true government policy performance.
+
+## Limitations 
+
+This analysis is limited by relying only on police-reported collision data. It does not account for other driving dangers, such as near misses. Furthermore, evaluating recent policy effectiveness is skewed by the COVID-19 pandemic. The dataset also lacks demographic data about the drivers involved, limiting the ability to analyze disparities among dangerous drivers. Finally, this analysis does not factor in environmental variables like seasonal weather changes, which introduce a host of other factors that impact driving risk. While this paper surfaces several key factors in collision risk, further research is needed to build a comprehensive picture of road safety in Toronto.
+
+\newpage
+
+\appendix
+
+# Appendix {-}
+
+# Data
+
+## Data Cleaning
+
+The raw dataset required minimal cleaning to prepare for analysis, with less than one percent of total observations removed due to missing geographic coordinates, geographic ward assignments, or accident classifications. Minor data entry errors, such as flipped longitude signs, were corrected. Implausible ages exceeding 110 years were removed. A small number of incidents strictly involving property damage (18 collisions) were reclassified under the broader non-fatal injury category.
+
+Several variables were constructed to do temporal and behavioral data analysis. The collision timestamp was parsed to extract the specific year, month, day of the week, and hour of each incident. Additionally, missing data within character columns were standardized. For police-reported binary indicators that described behavioral factors, such as distracted driving, aggressive driving, and heavy truck involvement, blank entries were explicitly recorded as "No." This aligns with standard incident reporting practices where the absence of a flag indicates the factor was not observed at the scene, ensuring the final dataset accurately reflects the presence or absence of these critical risk factors.
+
+\newpage
+
+# References
+
+
